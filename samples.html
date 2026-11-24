@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TraceRight – Sample QR codes</title>
+<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#fff;color:#1b2733}
+  header{background:#0f2a44;color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
+  header h1{margin:0;font-size:18px}
+  header a{color:#9fc3ec;font-size:14px;text-decoration:none}
+  p{padding:0 16px;color:#4a5664;font-size:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px;padding:16px}
+  .card{border:1px solid #dfe3e8;border-radius:12px;padding:14px;text-align:center}
+  .card b{display:block;margin-bottom:8px}
+  .card .qr img{width:170px;height:170px;image-rendering:pixelated}
+  .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;margin-top:6px;word-break:break-all}
+  .note{font-size:12px;color:#5b6775;margin-top:4px}
+  @media print{header,p{display:none}}
+</style>
+</head>
+<body>
+<header><h1>Sample QR codes</h1><a href="index.html">Home</a></header>
+<p>Show this page on a laptop or print it, then scan each code with <b>camtest.html</b> on the phone. The last card is deliberately invalid to test the red warning. These are test codes only; real demo labels will come from the label pages.</p>
+<div class="grid" id="grid"></div>
+<script>
+(function () {
+  var d = new Date(), yy = String(d.getFullYear()).slice(2),
+      mm = ('0' + (d.getMonth() + 1)).slice(-2), dd = ('0' + d.getDate()).slice(-2),
+      ymd = yy + mm + dd;
+  var samples = [
+    ['Pipe QR-24', ymd + '1' + '01' + '00000001' + '1' + '00001' + '0', 'Machine 01, Right side, serial 00001'],
+    ['Pipe Bundle QR-24', ymd + '1' + '01' + '00000001' + '0001' + '06' + '1', 'Check 1 = Pipe Bundle, qty 06'],
+    ['Bundle QR-15', 'T2026' + '0000000001', 'Pre-printed roll label'],
+    ['Fittings Box QR-24', ymd + '1' + '10' + '00000021' + '0001' + '25' + '2', 'Check 2 = Fittings Box, qty 25'],
+    ['Agri Pipe QR-24', ymd + '1' + '20' + '00000031' + '0001' + '01' + '3', 'Check 3 = Agri, qty 01'],
+    ['Invalid test', 'HELLO-TRACERIGHT', 'Should show a red warning']
+  ];
+  var grid = document.getElementById('grid');
+  samples.forEach(function (s) {
+    var qr = qrcode(0, 'M'); qr.addData(s[1]); qr.make();
+    var el = document.createElement('div'); el.className = 'card';
+    el.innerHTML = '<b>' + s[0] + '</b><div class="qr">' + qr.createImgTag(6, 8) + '</div>' +
+      '<div class="code">' + s[1] + '</div><div class="note">' + s[2] + '</div>';
+    grid.appendChild(el);
+  });
+})();
+</script>
+</body>
+</html>
