@@ -2,33 +2,101 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TraceRight Prototype</title>
-<style>
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f4f6f8;color:#1b2733}
-  header{background:#0f2a44;color:#fff;padding:20px}
-  h1{margin:0;font-size:22px}
-  p.sub{margin:6px 0 0;color:#c9d6e3;font-size:14px}
-  main{padding:20px;max-width:560px;margin:auto}
-  a.card{display:block;background:#fff;border:1px solid #dfe3e8;border-radius:12px;padding:18px;margin-bottom:14px;text-decoration:none;color:inherit}
-  a.card b{display:block;font-size:18px;margin-bottom:4px;color:#1f6fd1}
-  a.card span{font-size:14px;color:#4a5664}
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#0f2a44">
+<title>TraceRight</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="config.js"></script>
+<script src="qrparse.js"></script>
+<script src="api.js"></script>
+<script src="scanner.js"></script>
 </head>
 <body>
-<header>
-  <h1>TraceRight Prototype</h1>
-  <p class="sub">PPSPL QR traceability – demo build</p>
+<header class="bar">
+  <h1 id="title">TraceRight</h1>
+  <div class="who" id="who"></div>
 </header>
+
 <main>
-  <a class="card" href="camtest.html">
-    <b>Step 0 · Camera scan test</b>
-    <span>Open on the phone. Scans a QR with the camera and decodes it using the 16-Nov-2026 coding scheme.</span>
-  </a>
-  <a class="card" href="samples.html">
-    <b>Sample QR codes</b>
-    <span>Open on a laptop screen (or print) and scan these with the phone.</span>
-  </a>
+  <!-- Backend not connected -->
+  <section id="v-setup" class="hidden">
+    <div class="msg warn"><b>Backend not connected yet.</b><br>The app needs the Apps Script web app address in <span class="mono">config.js</span>. The camera test and sample codes still work.</div>
+    <div class="tiles">
+      <a class="tile" href="camtest.html">Camera test<small>Check scanning on this phone</small></a>
+      <a class="tile" href="samples.html">Sample codes<small>Test QR codes to scan</small></a>
+    </div>
+  </section>
+
+  <!-- Screen 1: Login -->
+  <section id="v-login" class="hidden">
+    <div class="card">
+      <h2>Log in</h2>
+      <label for="l-user">User</label>
+      <select id="l-user"><option value="">Loading users…</option></select>
+      <label for="l-pin">PIN</label>
+      <input id="l-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="4-digit PIN">
+      <div style="height:14px"></div>
+      <button id="l-go">Log in</button>
+      <div id="l-msg"></div>
+    </div>
+    <p class="muted">Prototype with dummy data. Logins: 2 operators and 1 supervisor.</p>
+  </section>
+
+  <!-- Home -->
+  <section id="v-home" class="hidden">
+    <div class="tiles">
+      <button class="tile" data-go="lookup">Package / Pipe lookup<small>Scan any code to see its history</small></button>
+      <button class="tile" data-go="pack">Primary Pack<small>Close a pipe bundle, fittings box or Agri pipe</small></button>
+      <a class="tile" href="labels.html">Print demo labels<small>Today's QR sheets (A4)</small></a>
+      <a class="tile" href="camtest.html">Camera test<small>Scan and decode only</small></a>
+      <div class="tile off">Transfer<small>Phase 2</small></div>
+      <div class="tile off">Sales<small>Phase 2</small></div>
+      <div class="tile off">Returns<small>Phase 2</small></div>
+      <div class="tile off">Unpack / Repack<small>Phase 2</small></div>
+    </div>
+    <p class="muted" id="home-info"></p>
+  </section>
+
+  <!-- Screen 2: Lookup -->
+  <section id="v-lookup" class="hidden">
+    <div class="row" style="margin-bottom:10px">
+      <button class="sec" data-go="home">← Home</button>
+      <button id="k-cam">Start camera</button>
+    </div>
+    <div id="k-reader" class="reader"></div>
+    <div class="manual"><input id="k-manual" class="mono" placeholder="or type / paste a code"><button id="k-manual-go">Look up</button></div>
+    <div id="k-out"></div>
+  </section>
+
+  <!-- Screen 3: Primary Pack -->
+  <section id="v-pack" class="hidden">
+    <div class="row" style="margin-bottom:10px">
+      <button class="sec" data-go="home">← Home</button>
+      <button id="p-cam">Start camera</button>
+    </div>
+    <div id="p-reader" class="reader"></div>
+    <div class="manual"><input id="p-manual" class="mono" placeholder="or type / paste a code"><button id="p-manual-go">Add</button></div>
+    <div class="card" id="p-state"></div>
+    <div id="p-msg"></div>
+    <div class="row">
+      <button class="danger" id="p-undo">Undo last</button>
+      <button class="sec" id="p-cancel">Cancel</button>
+    </div>
+    <div style="height:10px"></div>
+    <button class="ok" id="p-close" disabled>Close package</button>
+  </section>
+
+  <!-- Pack result -->
+  <section id="v-done" class="hidden">
+    <div id="d-out"></div>
+    <div class="row">
+      <button id="d-next">Next package</button>
+      <button class="sec" data-go="home">Home</button>
+    </div>
+  </section>
 </main>
+
+<script src="app.js"></script>
 </body>
 </html>

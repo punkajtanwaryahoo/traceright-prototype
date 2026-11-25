@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TraceRight – Demo labels</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="config.js"></script>
+<script src="api.js"></script>
+<style>
+  .controls{max-width:760px;margin:auto;padding:14px}
+  .sets{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .sets button{font-size:15px}
+  .sheet{width:210mm;height:296mm;overflow:hidden;padding:8mm;margin:12px auto;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.15);color:#000;font-family:Arial,sans-serif}
+  .sheet h3{margin:0 0 2mm;font-size:11pt;display:flex;justify-content:space-between}
+  .sheet h3 span{font-weight:400;font-size:8pt;color:#333}
+  .grid{display:grid;border-top:0.2mm solid #999;border-left:0.2mm solid #999}
+  .cell{border-right:0.2mm solid #999;border-bottom:0.2mm solid #999;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .pipe{flex-direction:column;height:26.8mm;text-align:center}
+  .pipe .cap{font-size:6pt;color:#333;line-height:1.1}
+  .pipe img{width:16mm;height:16mm;image-rendering:pixelated;margin:0.6mm 0}
+  .code{font-family:'Courier New',monospace;font-size:6.5pt;line-height:1.15;letter-spacing:0.1pt}
+  .pair{gap:3mm;padding:1.5mm 3mm;justify-content:flex-start}
+  .pair .txt{display:flex;flex-direction:column;gap:0.8mm;text-align:left}
+  .pair .cap{font-size:7pt;color:#333}
+  .pair .what{font-size:8pt;font-weight:bold}
+  .pair img{image-rendering:pixelated;flex:none}
+  .pair .code{font-size:8pt}
+  .rowlbl{font-size:7pt;color:#333}
+  @media print{
+    @page{size:A4;margin:0}
+    body{background:#fff}
+    header.bar,.controls{display:none!important}
+    .sheet{margin:0;box-shadow:none;page-break-after:always;break-after:page}
+  }
+</style>
+</head>
+<body>
+<header class="bar"><h1>Demo labels</h1><div class="who"><a href="index.html">App home</a></div></header>
+<div class="controls">
+  <div id="need-login" class="msg warn hidden">Log in on the <a href="index.html">app home page</a> first, then come back here.</div>
+  <div class="card">
+    <h2>Generate today's labels</h2>
+    <p class="muted">Each set reserves new serial numbers for today and records every label in the QR_Labels tab. Use <b>Print</b> (Ctrl/Cmd+P) on a desktop browser, paper A4, scale 100%, margins none.</p>
+    <div class="sets">
+      <button data-kind="pipes">Pipes + bundles<br><small>P1 (60 pipes) + B1 (10 bundles)</small></button>
+      <button data-kind="fittings">Fittings<br><small>F1 (5 boxes)</small></button>
+      <button data-kind="agri">Agri<br><small>A1 (3 pipes)</small></button>
+    </div>
+    <div id="msg"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="sec" id="print" disabled>Print</button>
+      <button class="sec" id="reshow" disabled>Show last set again</button>
+    </div>
+  </div>
+</div>
+<div id="sheets"></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); };
+  var LAST = 'tr_last_labels';
+
+  function qrImg(text, mm) {
+    var q = qrcode(0, 'M'); q.addData(text); q.make();
+    return '<img alt="' + esc(text) + '" src="' + q.createDataURL(8, 16) + '" style="width:' + mm + 'mm;height:' + mm + 'mm">';
+  }
+  function pipeLines(c) { return c.slice(0, 6) + ' ' + c[6] + ' ' + c.slice(7, 9) + '<br>' + c.slice(9, 17) + ' ' + c[17] + ' ' + c.slice(18, 23) + ' ' + c[23]; }
+  function bunLines(c) { return c.slice(0, 6) + ' ' + c[6] + ' ' + c.slice(7, 9) + '<br>' + c.slice(9, 17) + ' ' + c.slice(17, 21) + ' ' + c.slice(21, 23) + ' ' + c[23]; }
+
+  function header(name, set) {
+    return '<h3>' + name + '<span>' + esc(set.date) + ' · batch ' + esc(set.batch) + ' · printed by ' + esc(set.printedBy) + '</span></h3>';
+  }
+
+  function render(set) {
+    var html = '';
+    if (set.kind === 'pipes') {
+      html += '<div class="sheet">' + header('P1 · Pipes (6 per bundle; row n = bundle n)', set) +
+        '<div class="grid" style="grid-template-columns:repeat(6,1fr)">';
+      set.rows.forEach(function (r) {
+        r.pipes.forEach(function (p, k) {
+          html += '<div class="cell pipe"><div class="cap">B' + r.row + ' · pipe ' + (k + 1) + ' · ' + esc(r.sku) + ' · M' + esc(r.machine) + '</div>' +
+            qrImg(p, 16) + '<div class="code">' + pipeLines(p) + '</div></div>';
+        });
+      });
+      html += '</div></div>';
+      html += pairSheet('B1 · Pipe bundles (bag label QR-24 + roll label QR-15)', set, 10, 21);
+    } else if (set.kind === 'fittings') {
+      html += pairSheet('F1 · Fittings boxes (QR-15 optional)', set, 5, 34);
+    } else {
+      html += pairSheet('A1 · Agri pipes (printed on the pipe; quantity 01; QR-15 optional)', set, 3, 44);
+    }
+    $('sheets').innerHTML = html;
+    $('print').disabled = false;
+  }
+
+  function pairSheet(title, set, rows, qrMm) {
+    var h = (281 - 8) / rows;
+    var html = '<div class="sheet">' + header(title, set) + '<div class="grid" style="grid-template-columns:1fr 1fr">';
+    set.rows.forEach(function (r) {
+      var cap = 'Row ' + r.row + ' · ' + esc(r.pkgType) + ' · ' + esc(r.sku) + ' · M' + esc(r.machine);
+      html += '<div class="cell pair" style="height:' + h + 'mm">' + qrImg(r.bun24, qrMm) +
+        '<div class="txt"><span class="what">QR-24</span><span class="cap">' + cap + '</span><span class="cap">' + esc(r.skuName) + '</span>' +
+        '<span class="code">' + bunLines(r.bun24) + '</span></div></div>';
+      html += '<div class="cell pair" style="height:' + h + 'mm">' + qrImg(r.bun15, qrMm) +
+        '<div class="txt"><span class="what">QR-15</span><span class="cap">' + cap + '</span><span class="code">' + esc(r.bun15) + '</span></div></div>';
+    });
+    return html + '</div></div>';
+  }
+
+  if (!TRApi.user()) $('need-login').classList.remove('hidden');
+  try { if (localStorage.getItem(LAST)) $('reshow').disabled = false; } catch (e) {}
+
+  document.querySelectorAll('[data-kind]').forEach(function (b) {
+    b.onclick = function () {
+      var kind = b.getAttribute('data-kind');
+      if (!TRApi.user()) { $('need-login').classList.remove('hidden'); return; }
+      if (!confirm('Reserve new serial numbers and generate the ' + b.innerText.split('\n')[0] + ' labels for today?')) return;
+      document.querySelectorAll('[data-kind]').forEach(function (x) { x.disabled = true; });
+      $('msg').innerHTML = '<div class="msg info">Reserving serial numbers…</div>';
+      TRApi.call('reserveLabels', { kind: kind }, 60000).then(function (r) {
+        document.querySelectorAll('[data-kind]').forEach(function (x) { x.disabled = false; });
+        if (!r.ok) { $('msg').innerHTML = '<div class="msg bad">' + esc(r.error) + '</div>'; return; }
+        try { localStorage.setItem(LAST, JSON.stringify(r)); } catch (e) {}
+        $('reshow').disabled = false;
+        $('msg').innerHTML = '<div class="msg ok">Batch ' + esc(r.batch) + ' ready. Check the preview, then Print.</div>';
+        render(r);
+      }).catch(function (e) {
+        document.querySelectorAll('[data-kind]').forEach(function (x) { x.disabled = false; });
+        $('msg').innerHTML = '<div class="msg bad">' + esc(e.message) + '</div>';
+      });
+    };
+  });
+  $('print').onclick = function () { window.print(); };
+  $('reshow').onclick = function () {
+    try { var r = JSON.parse(localStorage.getItem(LAST)); if (r) { render(r); $('msg').innerHTML = '<div class="msg info">Showing batch ' + esc(r.batch) + ' again (no new serials reserved).</div>'; } } catch (e) {}
+  };
+})();
+</script>
+</body>
+</html>
