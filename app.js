@@ -15,23 +15,28 @@
 
   // ------------------------------------------------------------ navigation
   function show(view) {
-    ['setup', 'login', 'home', 'lookup', 'pack', 'done'].forEach(function (v) { $('v-' + v).classList.toggle('hidden', v !== view); });
+    document.querySelectorAll('main > section').forEach(function (sec) { sec.classList.toggle('hidden', sec.id !== 'v-' + view); });
     if (view !== 'lookup' && lookupScanner) lookupScanner.stop().then(function () { $('k-cam').textContent = 'Start camera'; });
     if (view !== 'pack' && packScanner) packScanner.stop().then(function () { $('p-cam').textContent = 'Start camera'; });
+    window.dispatchEvent(new CustomEvent('tr-view', { detail: view }));
     current = view;
     var u = TRApi.user();
     $('who').innerHTML = u && view !== 'login' && view !== 'setup'
       ? esc(u.name) + ' · ' + esc(u.role) + '<br><button class="link" id="logout">Log out</button>' : '';
     var lo = $('logout'); if (lo) lo.onclick = function () { TRApi.logout(); start(); };
-    $('title').textContent = { lookup: 'Lookup', pack: 'Primary Pack', done: 'Primary Pack' }[view] || 'TraceRight';
+    $('title').textContent = { lookup: 'Lookup', pack: 'Primary Pack', done: 'Primary Pack', move: (window.TRMoveTitle || 'Transfer'),
+      ret: 'Returns', unp: 'Unpack', rep: 'Repack', dash: 'Dashboard', result: 'Saved' }[view] || 'TraceRight';
+    applyAccess();
     window.scrollTo(0, 0);
   }
   document.addEventListener('click', function (e) {
     var g = e.target.closest('[data-go]');
     if (!g) return;
     var v = g.getAttribute('data-go');
+    if (g.classList.contains('locked')) { alert('This module is for supervisors only.'); return; }
     if (v === 'pack') resetPack();
     if (v === 'lookup') $('k-out').innerHTML = '';
+    window.dispatchEvent(new CustomEvent('tr-enter', { detail: { view: v, arg: g.getAttribute('data-arg') } }));
     show(v);
   });
   window.addEventListener('tr-auth-expired', function () { show('login'); msg('l-msg', 'warn', 'Session expired. Please log in again.'); });
@@ -107,13 +112,13 @@
     return '<table class="kv">' + rows.filter(function (r) { return r[1] !== undefined && r[1] !== ''; })
       .map(function (r) { return '<tr><td>' + esc(r[0]) + '</td><td>' + r[1] + '</td></tr>'; }).join('') + '</table>';
   }
-  function timeline(events) {
+  function timeline(events, newestFirst) {
     if (!events || !events.length) return '<p class="muted">No events yet.</p>';
-    events.sort(function (a, b) { return (a.When > b.When ? 1 : -1) || (+a.EVT_ID - +b.EVT_ID); });
+    events.sort(function (a, b) { return (a.When === b.When ? (+a.EVT_ID - +b.EVT_ID) : (a.When > b.When ? 1 : -1)) * (newestFirst ? -1 : 1); });
     return '<div class="timeline">' + events.map(function (e) {
       return '<div class="ev"><b>' + esc(e.Event) + ' · ' + esc(e.Where) + '</b><span class="muted">' + esc(e.When) +
         ' · qty ' + esc(e.Item_Qty) + ' · ' + esc(e.USR_Code) + ' · EVT ' + esc(e.EVT_ID) + '</span>' +
-        (e.Reason ? '<div class="muted">⚠ ' + esc(e.Reason) + '</div>' : '') + '</div>';
+        (e.Reason ? '<div class="muted">' + (/not today|override/.test(e.Reason) ? '⚠ ' : '↳ ') + esc(e.Reason) + '</div>' : '') + '</div>';
     }).join('') + '</div>';
   }
   function skuLine(sku, part) { return sku ? esc(sku.SKU_Code) + ' · ' + esc(sku.SKU_Description) : 'Part ' + esc(part) + ' (not in SKU master)'; }
@@ -320,6 +325,21 @@
     });
   };
   $('d-next').onclick = function () { resetPack(); show('pack'); };
+
+  function applyAccess() {
+    var u = TRApi.user(), sup = u && Number(u.access) >= 2;
+    document.querySelectorAll('[data-sup]').forEach(function (t) {
+      t.classList.toggle('locked', !sup);
+      var sm = t.querySelector('small'); if (sm && !sm.dataset.orig) sm.dataset.orig = sm.textContent;
+      if (sm) sm.textContent = sup ? sm.dataset.orig : 'Supervisor only';
+    });
+  }
+
+  window.TRApp = {
+    show: show, msg: msg, esc: esc, kv: kv, timeline: timeline, camButton: camButton,
+    masters: function () { return M; }, skuByCode: function (c) { return (M && M.skus || []).filter(function (s) { return s.SKU_Code === c; })[0]; },
+    skuByPart: function (p) { return skuByPart[p]; }, target: target, todayYYMMDD: todayYYMMDD
+  };
 
   resetPack();
   start();

@@ -50,10 +50,12 @@
       <button class="tile" data-go="pack">Primary Pack<small>Close a pipe bundle, fittings box or Agri pipe</small></button>
       <a class="tile" href="labels.html">Print demo labels<small>Today's QR sheets (A4)</small></a>
       <a class="tile" href="camtest.html">Camera test<small>Scan and decode only</small></a>
-      <div class="tile off">Transfer<small>Phase 2</small></div>
-      <div class="tile off">Sales<small>Phase 2</small></div>
-      <div class="tile off">Returns<small>Phase 2</small></div>
-      <div class="tile off">Unpack / Repack<small>Phase 2</small></div>
+      <button class="tile" data-go="move" data-arg="transfer">Transfer<small>Move packages between yards and warehouses</small></button>
+      <button class="tile" data-go="move" data-arg="sales">Sales<small>Load packages for a customer</small></button>
+      <button class="tile" data-go="ret" data-sup="1">Returns<small>Receive a sold package back</small></button>
+      <button class="tile" data-go="unp" data-sup="1">Unpack<small>Open a package; pipes become loose</small></button>
+      <button class="tile" data-go="rep">Repack<small>New package from loose stock</small></button>
+      <button class="tile" data-go="dash">Dashboard<small>Stock, production and sales</small></button>
     </div>
     <p class="muted" id="home-info"></p>
   </section>
@@ -87,6 +89,88 @@
     <button class="ok" id="p-close" disabled>Close package</button>
   </section>
 
+  <!-- Transfer / Sales session -->
+  <section id="v-move" class="hidden">
+    <div class="row" style="margin-bottom:10px">
+      <button class="sec" data-go="home">← Home</button>
+      <button id="mv-cam">Start camera</button>
+    </div>
+    <div class="card" id="mv-fields"></div>
+    <div id="mv-reader" class="reader"></div>
+    <div class="manual"><input id="mv-manual" class="mono" placeholder="or type / paste a package code"><button id="mv-manual-go">Add</button></div>
+    <div id="mv-msg"></div>
+    <div class="card" id="mv-list"></div>
+    <div class="row">
+      <button class="danger" id="mv-undo">Undo last</button>
+      <button class="sec" id="mv-cancel">Cancel</button>
+    </div>
+    <div style="height:10px"></div>
+    <button class="ok" id="mv-save" disabled>Loading complete</button>
+  </section>
+
+  <!-- Returns -->
+  <section id="v-ret" class="hidden">
+    <div class="row" style="margin-bottom:10px">
+      <button class="sec" data-go="home">← Home</button>
+      <button id="rt-cam">Start camera</button>
+    </div>
+    <div class="card"><label for="rt-at">Receiving location</label><select id="rt-at" class="loc"></select></div>
+    <div id="rt-reader" class="reader"></div>
+    <div class="manual"><input id="rt-manual" class="mono" placeholder="or type / paste a package code"><button id="rt-manual-go">Find</button></div>
+    <div id="rt-msg"></div>
+    <div id="rt-form" class="card hidden"></div>
+  </section>
+
+  <!-- Unpack -->
+  <section id="v-unp" class="hidden">
+    <div class="row" style="margin-bottom:10px">
+      <button class="sec" data-go="home">← Home</button>
+      <button id="up-cam">Start camera</button>
+    </div>
+    <div class="card"><label for="up-at">Location where the package is opened</label><select id="up-at" class="loc"></select></div>
+    <div id="up-reader" class="reader"></div>
+    <div class="manual"><input id="up-manual" class="mono" placeholder="or type / paste a package code"><button id="up-manual-go">Find</button></div>
+    <div id="up-msg"></div>
+    <div id="up-form" class="card hidden"></div>
+  </section>
+
+  <!-- Repack -->
+  <section id="v-rep" class="hidden">
+    <div class="row" style="margin-bottom:10px">
+      <button class="sec" data-go="home">← Home</button>
+      <button id="rp-cam">Start camera</button>
+    </div>
+    <div class="card"><label for="rp-at">Repack location</label><select id="rp-at" class="loc"></select></div>
+    <div id="rp-reader" class="reader"></div>
+    <div class="manual"><input id="rp-manual" class="mono" placeholder="or type / paste a code"><button id="rp-manual-go">Add</button></div>
+    <div class="card" id="rp-state"></div>
+    <div id="rp-msg"></div>
+    <div class="row">
+      <button class="danger" id="rp-undo">Undo last</button>
+      <button class="sec" id="rp-cancel">Cancel</button>
+    </div>
+    <div style="height:10px"></div>
+    <button class="ok" id="rp-close" disabled>Close repacked package</button>
+  </section>
+
+  <!-- Dashboard -->
+  <section id="v-dash" class="hidden">
+    <div class="row" style="margin-bottom:10px">
+      <button class="sec" data-go="home">← Home</button>
+      <button id="db-refresh">Refresh</button>
+    </div>
+    <div id="db-out"></div>
+  </section>
+
+  <!-- Generic result -->
+  <section id="v-result" class="hidden">
+    <div id="rs-out"></div>
+    <div class="row">
+      <button id="rs-again">Start another</button>
+      <button class="sec" data-go="home">Home</button>
+    </div>
+  </section>
+
   <!-- Pack result -->
   <section id="v-done" class="hidden">
     <div id="d-out"></div>
@@ -98,5 +182,6 @@
 </main>
 
 <script src="app.js"></script>
+<script src="modules.js"></script>
 </body>
 </html>

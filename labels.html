@@ -48,6 +48,18 @@
       <button data-kind="fittings">Fittings<br><small>F1 (5 boxes)</small></button>
       <button data-kind="agri">Agri<br><small>A1 (3 pipes)</small></button>
     </div>
+    <h2 style="margin-top:18px">Repack labels (R1)</h2>
+    <p class="muted">For Repack only: factory digit 0 and the location number in digits 8-9. Print them for the location where the repacking happens.</p>
+    <div class="row">
+      <div><label for="r-at">Location</label><select id="r-at"></select></div>
+      <div><label for="r-sku">SKU</label><select id="r-sku"></select></div>
+    </div>
+    <div class="row">
+      <div><label for="r-rows">Labels (1-10)</label><input id="r-rows" type="number" min="1" max="10" value="5"></div>
+      <div><label for="r-qty">Quantity on label</label><input id="r-qty" type="number" min="1" max="99" value="6"></div>
+    </div>
+    <div style="height:10px"></div>
+    <button id="r-go">Generate repack labels</button>
     <div id="msg"></div>
     <div class="row" style="margin-top:10px">
       <button class="sec" id="print" disabled>Print</button>
@@ -89,8 +101,11 @@
       html += pairSheet('B1 · Pipe bundles (bag label QR-24 + roll label QR-15)', set, 10, 21);
     } else if (set.kind === 'fittings') {
       html += pairSheet('F1 · Fittings boxes (QR-15 optional)', set, 5, 34);
-    } else {
+    } else if (set.kind === 'agri') {
       html += pairSheet('A1 · Agri pipes (printed on the pipe; quantity 01; QR-15 optional)', set, 3, 44);
+    } else {
+      var n = Math.max(set.rows.length, 5);
+      html += pairSheet('R1 · Repack labels · ' + esc(set.location), set, n, n > 5 ? 21 : 34);
     }
     $('sheets').innerHTML = html;
     $('print').disabled = false;
@@ -100,7 +115,7 @@
     var h = (281 - 8) / rows;
     var html = '<div class="sheet">' + header(title, set) + '<div class="grid" style="grid-template-columns:1fr 1fr">';
     set.rows.forEach(function (r) {
-      var cap = 'Row ' + r.row + ' · ' + esc(r.pkgType) + ' · ' + esc(r.sku) + ' · M' + esc(r.machine);
+      var cap = 'Row ' + r.row + ' · ' + esc(r.pkgType) + ' · ' + esc(r.sku) + ' · ' + (set.kind === 'repack' ? 'Loc ' + esc(r.machine) : 'M' + esc(r.machine));
       html += '<div class="cell pair" style="height:' + h + 'mm">' + qrImg(r.bun24, qrMm) +
         '<div class="txt"><span class="what">QR-24</span><span class="cap">' + cap + '</span><span class="cap">' + esc(r.skuName) + '</span>' +
         '<span class="code">' + bunLines(r.bun24) + '</span></div></div>';
@@ -133,6 +148,32 @@
       });
     };
   });
+  // repack form
+  TRApi.call('masters').then(function (m) {
+    if (!m.ok) return;
+    $('r-at').innerHTML = m.warehouses.map(function (w) { return '<option value="' + esc(w.WHS_Code) + '">' + esc(w.WHS_Code + ' · ' + w.WHS_Name + ' (loc ' + w.Loc_No + ')') + '</option>'; }).join('');
+    $('r-sku').innerHTML = m.skus.map(function (k) { return '<option value="' + esc(k.SKU_Code) + '" data-cat="' + esc(k.SKU_Category) + '" data-qty="' + esc(k.STD_Qty) + '">' + esc(k.SKU_Code + ' · ' + k.SKU_Description) + '</option>'; }).join('');
+    $('r-sku').onchange = function () {
+      var o = $('r-sku').selectedOptions[0];
+      $('r-qty').value = o.dataset.cat === 'Pipe' ? m.pipeBundleQty : o.dataset.qty;
+      $('r-qty').disabled = o.dataset.cat === 'Agri';
+    };
+    $('r-sku').onchange();
+  }).catch(function () {});
+  $('r-go').onclick = function () {
+    if (!TRApi.user()) { $('need-login').classList.remove('hidden'); return; }
+    var body = { kind: 'repack', at: $('r-at').value, sku: $('r-sku').value, rows: Number($('r-rows').value), qty: Number($('r-qty').value) };
+    if (!confirm('Reserve ' + body.rows + ' repack label(s) for ' + body.sku + ' at ' + body.at + '?')) return;
+    $('r-go').disabled = true; $('msg').innerHTML = '<div class="msg info">Reserving serial numbers…</div>';
+    TRApi.call('reserveLabels', body, 60000).then(function (r) {
+      $('r-go').disabled = false;
+      if (!r.ok) { $('msg').innerHTML = '<div class="msg bad">' + esc(r.error) + '</div>'; return; }
+      try { localStorage.setItem(LAST, JSON.stringify(r)); } catch (e) {}
+      $('reshow').disabled = false;
+      $('msg').innerHTML = '<div class="msg ok">Batch ' + esc(r.batch) + ' ready. Check the preview, then Print.</div>';
+      render(r);
+    }).catch(function (e) { $('r-go').disabled = false; $('msg').innerHTML = '<div class="msg bad">' + esc(e.message) + '</div>'; });
+  };
   $('print').onclick = function () { window.print(); };
   $('reshow').onclick = function () {
     try { var r = JSON.parse(localStorage.getItem(LAST)); if (r) { render(r); $('msg').innerHTML = '<div class="msg info">Showing batch ' + esc(r.batch) + ' again (no new serials reserved).</div>'; } } catch (e) {}

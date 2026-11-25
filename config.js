@@ -3,5 +3,5 @@
 window.TR_CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyqxROF7g9CW1HvJp6_yDbE3-ARneCqRK3_GM5unoTE7yRvYAm5YMWvlzAtFugZ-Hze/exec',
   APP_NAME: 'TraceRight',
-  VERSION: '0.1.0'
+  VERSION: '0.2.0'
 };

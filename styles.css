@@ -50,3 +50,14 @@ h2{font-size:17px;margin:4px 0 10px}
 .manual{display:flex;gap:8px;margin-top:10px}
 .manual input{font-size:15px;padding:10px}
 .manual button{width:auto;padding:10px 14px;font-size:15px}
+.tile.locked{opacity:.5}
+.tile.locked small{color:#a12a2a}
+table.grid{width:100%;border-collapse:collapse;font-size:13px}
+table.grid th{text-align:left;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line);padding:5px 4px}
+table.grid td{border-bottom:1px solid #eef1f4;padding:5px 4px}
+table.grid td.n,table.grid th.n{text-align:right}
+.big{display:flex;gap:10px}
+.big div{flex:1;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.big b{display:block;font-size:24px}
+.check{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:14px}
+.check input{width:auto}
