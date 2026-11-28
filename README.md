@@ -8,8 +8,9 @@ QR code traceability demo for CPVC pipes, fittings boxes and Agri pipes.
 
 | File | Purpose |
 |---|---|
-| `index.html`, `app.js` | App shell: login, package/pipe lookup, primary pack |
-| `modules.js` | Transfer, Sales, Returns, Unpack, Repack, Dashboard (MOD003-MOD007) |
+| `index.html`, `app.js` | App shell: login with location, package/pipe lookup, primary pack, authorisation dialog |
+| `modules.js` | Transfer, Sales, Returns, Unpack, Repack, Location Correction, Approvals inbox, My requests, Dashboard |
+| `locqr.html` | Print location QR codes for machines and storage locations |
 | `labels.html` | Print today's demo QR sheets (P1+B1, F1, A1) and repack labels (R1) on A4 |
 | `camtest.html`, `samples.html` | Camera test and sample codes |
 | `qrparse.js` | Decodes QR codes per the 16-Nov-2026 coding scheme |

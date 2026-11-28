@@ -1,45 +1,73 @@
-// TraceRight prototype: Login, Lookup, Primary Pack
+// TraceRight prototype: Login (with location), Lookup, Primary Pack, authorisation dialog
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var M = null;                    // masters
   var skuByPart = {};
   var current = null;              // visible view name
-  var lookupScanner = null, packScanner = null;
+  var lookupScanner = null, packScanner = null, loginScanner = null;
   var PKG = { '1': 'Pipe Bundle', '2': 'Fittings Box', '3': 'Agri Pipe' };
+  var LEVEL = { 1: 'Operator', 2: 'Supervisor', 3: 'Manager' };
+  var lastAgain = null;
 
   function todayYYMMDD() {
     var d = new Date(); return String(d.getFullYear()).slice(2) + ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2);
   }
   function msg(el, kind, html) { $(el).innerHTML = '<div class="msg ' + kind + '">' + html + '</div>'; }
+  function me() { return TRApi.user(); }
+  function here() { var u = me(); return (u && u.loc) || null; }
+  function level() { var u = me(); return u ? Number(u.access) : 0; }
 
   // ------------------------------------------------------------ navigation
   function show(view) {
     document.querySelectorAll('main > section').forEach(function (sec) { sec.classList.toggle('hidden', sec.id !== 'v-' + view); });
     if (view !== 'lookup' && lookupScanner) lookupScanner.stop().then(function () { $('k-cam').textContent = 'Start camera'; });
     if (view !== 'pack' && packScanner) packScanner.stop().then(function () { $('p-cam').textContent = 'Start camera'; });
+    if (view !== 'login' && loginScanner) loginScanner.stop().then(function () { $('l-cam').textContent = 'Scan location QR'; });
     window.dispatchEvent(new CustomEvent('tr-view', { detail: view }));
     current = view;
-    var u = TRApi.user();
-    $('who').innerHTML = u && view !== 'login' && view !== 'setup'
-      ? esc(u.name) + ' · ' + esc(u.role) + '<br><button class="link" id="logout">Log out</button>' : '';
+    var u = me(), l = here();
+    $('who').innerHTML = u && l && view !== 'login' && view !== 'setup'
+      ? esc(u.name) + ' · ' + esc(u.role) + '<br><b>' + esc(l.code) + '</b><br><button class="link" id="logout">Log out</button>' : '';
     var lo = $('logout'); if (lo) lo.onclick = function () { TRApi.logout(); start(); };
     $('title').textContent = { lookup: 'Lookup', pack: 'Primary Pack', done: 'Primary Pack', move: (window.TRMoveTitle || 'Transfer'),
-      ret: 'Returns', unp: 'Unpack', rep: 'Repack', dash: 'Dashboard', result: 'Saved' }[view] || 'TraceRight';
-    applyAccess();
+      ret: 'Returns', unp: 'Unpack', rep: 'Repack', loc: 'Location Correction', inbox: 'Approvals', myreq: 'My requests',
+      dash: 'Dashboard', result: 'Saved' }[view] || 'TraceRight';
+    document.querySelectorAll('.card.here').forEach(function (c) {
+      c.innerHTML = l ? 'You are at <b>' + esc(l.name) + '</b><div class="muted">Fixed for this login. To work elsewhere, log out and log in there.</div>' : '';
+    });
+    if (view === 'home') applyAccess();
     window.scrollTo(0, 0);
   }
   document.addEventListener('click', function (e) {
     var g = e.target.closest('[data-go]');
     if (!g) return;
     var v = g.getAttribute('data-go');
-    if (g.classList.contains('locked')) { alert('This module is for supervisors only.'); return; }
     if (v === 'pack') resetPack();
     if (v === 'lookup') $('k-out').innerHTML = '';
     window.dispatchEvent(new CustomEvent('tr-enter', { detail: { view: v, arg: g.getAttribute('data-arg') } }));
     show(v);
   });
   window.addEventListener('tr-auth-expired', function () { show('login'); msg('l-msg', 'warn', 'Session expired. Please log in again.'); });
+
+  /** Home menu: by location type (machine / storage) and level. */
+  function applyAccess() {
+    var l = here(), lvl = level();
+    document.querySelectorAll('#v-home [data-go], #v-home a.tile').forEach(function (t) {
+      var at = t.getAttribute('data-at'), min = Number(t.getAttribute('data-min') || 0), need = Number(t.getAttribute('data-lvl') || 0);
+      t.classList.toggle('hidden', !!(at && l && at !== l.type) || (min && lvl < min));
+      var sm = t.querySelector('small');
+      if (sm && need) {
+        var badge = t.querySelector('.lvl');
+        if (!badge) { badge = document.createElement('span'); badge.className = 'lvl' + (need === 3 ? ' l3' : ''); t.insertBefore(badge, sm); }
+        badge.textContent = lvl >= need ? LEVEL[need] : 'needs ' + LEVEL[need];
+      }
+    });
+    if (l) $('home-loc').innerHTML = 'Logged in at <b>' + esc(l.name) + '</b> (' + (l.type === 'M' ? 'machine' : 'storage location') + ')';
+    if (lvl >= 2) TRApi.call('inbox', {}).then(function (r) {
+      if (r.ok) $('inbox-count').textContent = r.pending.length ? r.pending.length + ' waiting for you' : 'Nothing waiting';
+    }).catch(function () {});
+  }
 
   // ------------------------------------------------------------ start / login
   function loadMasters() {
@@ -53,13 +81,17 @@
 
   function start() {
     if (!(window.TR_CONFIG || {}).API_URL) { show('setup'); return; }
-    show(TRApi.user() ? 'home' : 'login');
+    var u = me();
+    if (u && !u.loc) { TRApi.logout(); u = null; }          // login from an older version: needs a location now
+    show(u ? 'home' : 'login');
     $('l-user').innerHTML = '<option value="">Loading users…</option>';
     loadMasters().then(function (res) {
-      $('l-user').innerHTML = '<option value="">Select your name</option>' + res.users.map(function (u) {
-        return '<option value="' + esc(u.code) + '">' + esc(u.name) + ' (' + esc(u.role) + ')</option>';
+      $('l-user').innerHTML = '<option value="">Select your name</option>' + res.users.map(function (x) {
+        return '<option value="' + esc(x.code) + '">' + esc(x.name) + ' (' + esc(x.role) + ')</option>';
       }).join('');
-      $('home-info').textContent = 'Connected. Server date ' + res.serverDate + '. Pipes per bundle: ' + res.pipeBundleQty + '.';
+      fillFactories();
+      $('home-info').textContent = 'Connected. Server date ' + res.serverDate + '. Backend ' + (res.version || '') + '. Pipes per bundle: ' + res.pipeBundleQty + '.';
+      if (current === 'home') applyAccess();
     }).catch(function (e) {
       $('l-user').innerHTML = '<option value="">Could not load users</option>';
       msg('l-msg', 'bad', esc(e.message));
@@ -67,37 +99,181 @@
     });
   }
 
+  function remembered() { try { return localStorage.getItem('tr_login_loc') || ''; } catch (e) { return ''; } }
+  function fillFactories() {
+    var ftys = {};
+    M.machines.forEach(function (m) { ftys[m.FTY_Code] = 1; });
+    M.warehouses.forEach(function (w) { if (w.FTY_Code) ftys[w.FTY_Code] = 1; });
+    $('l-fty').innerHTML = Object.keys(ftys).sort().map(function (f) {
+      var wip = M.warehouses.filter(function (w) { return w.FTY_Code === f; })[0];
+      return '<option value="' + esc(f) + '">Factory ' + esc(f) + (wip ? ' · ' + esc(wip.City) : '') + '</option>';
+    }).join('') + '<option value="0">0 · Not in a factory (depot, yard elsewhere)</option>';
+    var r = remembered().split('|');
+    if (r[2]) $('l-fty').value = r[2];
+    fillWhere(r[0] && r[1] ? r[0] + '|' + r[1] : '');
+  }
+  function fillWhere(sel) {
+    var f = $('l-fty').value, h = '<option value="">Select</option>';
+    if (f !== '0') {
+      h += '<optgroup label="Machines">' + M.machines.filter(function (m) { return m.FTY_Code === f; }).map(function (m) {
+        return '<option value="M|' + esc(m.MAC_Name) + '">' + esc(m.MAC_Name + ' · ' + m.MAC_Type) + '</option>';
+      }).join('') + '</optgroup>';
+    }
+    h += '<optgroup label="Storage locations">' + M.warehouses.map(function (w) {
+      return '<option value="S|' + esc(w.WHS_Code) + '">' + esc(w.WHS_Code + ' · ' + w.WHS_Name) + '</option>';
+    }).join('') + '</optgroup>';
+    $('l-where').innerHTML = h;
+    if (sel) $('l-where').value = sel;
+    if ($('l-where').selectedIndex < 0) $('l-where').value = '';
+  }
+  $('l-fty').onchange = function () { fillWhere(''); };
+
+  function onLocQR(code) {
+    var p = TR.parseLoc(code);
+    if (!p || p.type === 'C') { TRBeep('bad'); return msg('l-msg', 'bad', 'That is not a location QR. Scan the location QR posted at the machine or storage location.'); }
+    if (p.type === 'M') { $('l-fty').value = p.fty; fillWhere('M|' + p.code); }
+    else {
+      var w = (M.warehouses || []).filter(function (x) { return ('0' + x.Loc_No).slice(-2) === p.locNo; })[0];
+      if (!w) { TRBeep('bad'); return msg('l-msg', 'bad', 'Location ' + esc(p.locNo) + ' is not in WHS_Master.'); }
+      if (w.FTY_Code) $('l-fty').value = w.FTY_Code;
+      fillWhere('S|' + w.WHS_Code);
+    }
+    if (!$('l-where').value) { TRBeep('bad'); return msg('l-msg', 'bad', 'Location not found in the masters.'); }
+    TRBeep('ok');
+    msg('l-msg', 'ok', 'Location: <b>' + esc($('l-where').selectedOptions[0].textContent) + '</b>');
+    if (loginScanner) loginScanner.stop().then(function () { $('l-cam').textContent = 'Scan location QR'; });
+  }
+
   $('l-go').onclick = function () {
-    var usr = $('l-user').value, pin = $('l-pin').value.trim();
+    var usr = $('l-user').value, pin = $('l-pin').value.trim(), w = $('l-where').value;
     if (!usr) return msg('l-msg', 'warn', 'Select your name.');
     if (!pin) return msg('l-msg', 'warn', 'Enter your PIN.');
+    if (!w) return msg('l-msg', 'warn', 'Choose where you are, or scan the location QR.');
+    var parts = w.split('|');
     $('l-go').disabled = true; msg('l-msg', 'info', 'Checking…');
-    TRApi.call('login', { usr: usr, pin: pin }).then(function (res) {
+    TRApi.call('login', { usr: usr, pin: pin, loc: { type: parts[0], code: parts[1] } }).then(function (res) {
       $('l-go').disabled = false;
       if (!res.ok) return msg('l-msg', 'bad', esc(res.error));
       TRApi.saveLogin(res); $('l-pin').value = ''; $('l-msg').innerHTML = '';
+      try { localStorage.setItem('tr_login_loc', w + '|' + $('l-fty').value); } catch (e) {}
       show('home');
     }).catch(function (e) { $('l-go').disabled = false; msg('l-msg', 'bad', esc(e.message)); });
   };
   $('l-pin').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('l-go').click(); });
 
   // ------------------------------------------------------------ camera buttons
-  function camButton(btnId, readerId, getScanner, setScanner, onCode) {
+  function camButton(btnId, readerId, getScanner, setScanner, onCode, idleText) {
+    idleText = idleText || 'Start camera';
     $(btnId).onclick = function () {
       var s = getScanner();
       if (!s) { s = new TRScanner(readerId, onCode); setScanner(s); }
-      if (s.running) { s.stop().then(function () { $(btnId).textContent = 'Start camera'; }); return; }
+      if (s.running) { s.stop().then(function () { $(btnId).textContent = idleText; }); return; }
       $(btnId).textContent = 'Starting…';
       s.start().then(function () { $(btnId).textContent = 'Stop camera'; })
-        .catch(function (e) { $(btnId).textContent = 'Start camera'; alert('Camera could not start: ' + e); });
+        .catch(function (e) { $(btnId).textContent = idleText; alert('Camera could not start: ' + e); });
     };
   }
+  camButton('l-cam', 'l-reader', function () { return loginScanner; }, function (s) { loginScanner = s; }, onLocQR, 'Scan location QR');
 
-  // ------------------------------------------------------------ Screen 2: Lookup
+  // ------------------------------------------------------------ authorisation
+  /**
+   * Calls a stock action. If the server says it needs a reason or a higher level,
+   * opens the dialog: reason + approver PIN on this phone, or send for approval.
+   * Resolves with the final server reply, { requested: true } or { cancelled: true }.
+   */
+  function authCall(action, body, timeout) {
+    return TRApi.call(action, body, timeout).then(function (r) {
+      if (r.ok || !(r.needAuth || r.needReason)) return r;
+      return authDialog(action, body, r, timeout);
+    });
+  }
+  function authDialog(action, body, r, timeout) {
+    return new Promise(function (resolve) {
+      var need = r.need || 2;
+      var remoteOnly = !!r.needAuth;
+      $('au-title').textContent = r.needAuth ? 'Level ' + need + ' (' + LEVEL[need] + ') authorisation needed' : 'Reason needed';
+      $('au-why').innerHTML = '<div class="msg ' + (r.needAuth ? 'warn' : 'info') + '">' + (r.why || []).map(esc).join('<br>') +
+        ((r.warnings || []).length ? '<br><span class="muted">' + r.warnings.map(esc).join('<br>') + '</span>' : '') + '</div>';
+      $('au-reason').value = body.reason || '';
+      $('au-pin').value = '';
+      $('au-msg').innerHTML = '';
+      $('au-appr').classList.toggle('hidden', !remoteOnly);
+      $('au-ok').classList.toggle('hidden', remoteOnly);
+      if (remoteOnly) {
+        var u = me();
+        var appr = ((M && M.users) || []).filter(function (x) { return Number(x.access) >= need && x.code !== u.code; });
+        $('au-usr').innerHTML = '<option value="">Select ' + LEVEL[need].toLowerCase() + '</option>' + appr.map(function (x) {
+          return '<option value="' + esc(x.code) + '">' + esc(x.name + ' (' + x.role + ')') + '</option>';
+        }).join('');
+        $('au-dev').textContent = 'Level ' + need + ' Authorisation';
+        $('au-dev-h').textContent = 'Approver on this phone (' + LEVEL[need] + ' or above)';
+      }
+      $('auth').classList.remove('hidden');
+      $('au-reason').focus();
+
+      function close(res) {
+        $('au-pin').value = '';
+        $('auth').classList.add('hidden');
+        ['au-dev', 'au-ok', 'au-remote', 'au-cancel'].forEach(function (id) { $(id).onclick = null; $(id).disabled = false; });
+        resolve(res);
+      }
+      function reason() {
+        var t = $('au-reason').value.trim();
+        if (!t) { msg('au-msg', 'warn', 'Enter the reason.'); $('au-reason').focus(); }
+        return t;
+      }
+      function busy(on) { ['au-dev', 'au-ok', 'au-remote'].forEach(function (id) { $(id).disabled = on; }); }
+      function retry(extra) {
+        busy(true); msg('au-msg', 'info', 'Saving…');
+        TRApi.call(action, Object.assign({}, body, extra), timeout).then(function (res) {
+          busy(false); $('au-pin').value = '';
+          if (res.ok) return close(res);
+          if (res.needAuth || res.needReason) { TRBeep('bad'); return msg('au-msg', 'bad', esc(res.authError || res.error).replace(/\n/g, '<br>')); }
+          close(res);
+        }).catch(function (e) { busy(false); msg('au-msg', 'bad', esc(e.message) + '<br>Try again; it will not be saved twice.'); });
+      }
+      $('au-ok').onclick = function () { var t = reason(); if (t) retry({ reason: t }); };
+      $('au-dev').onclick = function () {
+        var t = reason(); if (!t) return;
+        if (!$('au-usr').value) return msg('au-msg', 'warn', 'Select the approver.');
+        if (!$('au-pin').value.trim()) return msg('au-msg', 'warn', 'The approver enters their PIN.');
+        retry({ reason: t, auth: { usr: $('au-usr').value, pin: $('au-pin').value.trim() } });
+      };
+      $('au-remote').onclick = function () {
+        var t = reason(); if (!t) return;
+        busy(true); msg('au-msg', 'info', 'Sending…');
+        TRApi.call('authRequest', { forAction: action, payload: body, reason: t }).then(function (res) {
+          busy(false);
+          if (!res.ok) return msg('au-msg', 'bad', esc(res.error).replace(/\n/g, '<br>'));
+          close({ ok: false, requested: true, reqId: res.reqId, need: res.need, needName: res.needName, summary: res.summary });
+        }).catch(function (e) { busy(false); msg('au-msg', 'bad', esc(e.message)); });
+      };
+      $('au-cancel').onclick = function () { close({ ok: false, cancelled: true, error: 'Not saved: authorisation cancelled.' }); };
+    });
+  }
+
+  function showResult(html, again) { $('rs-out').innerHTML = html; lastAgain = again; show('result'); }
+  $('rs-again').onclick = function () { if (lastAgain) lastAgain(); };
+  function showRequested(r, again) {
+    TRBeep('ok');
+    showResult('<div class="msg ok"><b>Request ' + esc(r.reqId) + ' sent</b></div><div class="card">' + kv([['Waiting for', 'Level ' + esc(r.need) + ' · ' + esc(r.needName)],
+      ['Request', esc(r.summary)]]) + '</div><div class="msg info">Nothing is saved yet. A ' + esc(String(r.needName).toLowerCase()) +
+      ' approves it from their Approvals inbox; you will see the result under <b>My requests</b>.</div>', again);
+  }
+  /** Shared handling of a reply that was not saved. Returns true when handled. */
+  function notSaved(r, el, again) {
+    if (r.requested) { showRequested(r, again); return true; }
+    if (r.cancelled) { TRBeep('warn'); msg(el, 'warn', esc(r.error)); return true; }
+    return false;
+  }
+
+  // ------------------------------------------------------------ Lookup
   camButton('k-cam', 'k-reader', function () { return lookupScanner; }, function (s) { lookupScanner = s; }, doLookup);
   $('k-manual-go').onclick = function () { var v = $('k-manual').value.trim(); if (v) doLookup(v); };
 
   function doLookup(code) {
+    var lq = TR.parseLoc(code);
+    if (lq) { TRBeep('ok'); return msg('k-out', 'info', '<b>Location QR</b> · ' + esc(lq.code || ('storage location ' + lq.locNo)) + '<br><span class="mono">' + esc(code) + '</span><br>Used at login to declare where you are.'); }
     var p = TR.parseQR(code);
     TRBeep(p.ok ? 'ok' : 'bad');
     if (!p.ok) { msg('k-out', 'bad', '<b>Not a valid TraceRight code</b><br><span class="mono">' + esc(code) + '</span><br>' + esc(p.errors.join('; '))); return; }
@@ -112,13 +288,17 @@
     return '<table class="kv">' + rows.filter(function (r) { return r[1] !== undefined && r[1] !== ''; })
       .map(function (r) { return '<tr><td>' + esc(r[0]) + '</td><td>' + r[1] + '</td></tr>'; }).join('') + '</table>';
   }
+  function userName(c) { var u = ((M && M.users) || []).filter(function (x) { return x.code === c; })[0]; return u ? u.name : c; }
   function timeline(events, newestFirst) {
     if (!events || !events.length) return '<p class="muted">No events yet.</p>';
     events.sort(function (a, b) { return (a.When === b.When ? (+a.EVT_ID - +b.EVT_ID) : (a.When > b.When ? 1 : -1)) * (newestFirst ? -1 : 1); });
     return '<div class="timeline">' + events.map(function (e) {
-      return '<div class="ev"><b>' + esc(e.Event) + ' · ' + esc(e.Where) + '</b><span class="muted">' + esc(e.When) +
-        ' · qty ' + esc(e.Item_Qty) + ' · ' + esc(e.USR_Code) + ' · EVT ' + esc(e.EVT_ID) + '</span>' +
-        (e.Reason ? '<div class="muted">' + (/not today|override/.test(e.Reason) ? '⚠ ' : '↳ ') + esc(e.Reason) + '</div>' : '') + '</div>';
+      var path = e.From_Where === e.To_Where ? esc(e.To_Where) : esc(e.From_Where) + ' → ' + esc(e.To_Where);
+      var flag = e.Event === 'Location Corrected' || e.Auth_By || /not today|recorded at|logged in at/.test(e.Reason || '');
+      return '<div class="ev"><b>' + esc(e.Event) + ' · ' + path + '</b><span class="muted">' + esc(e.When) +
+        ' · qty ' + esc(e.Item_Qty) + ' · ' + esc(e.USR_Code) + (e.Auth_By ? ' · authorised by ' + esc(userName(e.Auth_By)) + (e.Auth_Ref ? ' (' + esc(e.Auth_Ref) + ')' : '') : '') +
+        ' · EVT ' + esc(e.EVT_ID) + '</span>' +
+        (e.Reason ? '<div class="muted">' + (flag ? '⚠ ' : '↳ ') + esc(e.Reason) + '</div>' : '') + '</div>';
     }).join('') + '</div>';
   }
   function skuLine(sku, part) { return sku ? esc(sku.SKU_Code) + ' · ' + esc(sku.SKU_Description) : 'Part ' + esc(part) + ' (not in SKU master)'; }
@@ -161,7 +341,7 @@
     return h;
   }
 
-  // ------------------------------------------------------------ Screen 3: Primary Pack
+  // ------------------------------------------------------------ Primary Pack (logged in at a machine)
   var st;
   function resetPack() {
     st = { mode: null, pipes: [], bun24: null, bun15: null, sku: null, history: [], uuid: TRApi.uuid() };
@@ -169,6 +349,7 @@
     if (packScanner) packScanner.forget();
   }
   function target() { return (M && M.pipeBundleQty) || 6; }
+  function labelMachine(code) { return 'MAC-' + code[6] + '-' + code.slice(7, 9); }
 
   camButton('p-cam', 'p-reader', function () { return packScanner; }, function (s) { packScanner = s; }, packScan);
   $('p-manual-go').onclick = function () { var v = $('p-manual').value.trim(); if (v) { $('p-manual').value = ''; packScan(v); } };
@@ -202,6 +383,9 @@
     if (!p.ok) return fail('<b>Not a valid TraceRight code.</b><br><span class="mono">' + esc(code) + '</span><br>' + esc(p.errors.join('; ')));
     var part = code.slice(9, 17), oldDate = /^\d{24}$/.test(code) && code.slice(0, 6) !== todayYYMMDD();
     var dateNote = oldDate ? ' <span class="tag pend">label dated ' + esc(p.fields.Date) + '</span>' : '';
+    var l = here();
+    var macNote = /^\d{24}$/.test(code) && l && labelMachine(code) !== l.code
+      ? ' <span class="tag pend">label is for ' + esc(labelMachine(code)) + (level() < 2 ? ' · needs supervisor' : ' · reason needed') + '</span>' : '';
 
     if (p.kind === 'PIPE_QR24') {
       if (st.mode === 'box') return fail('This package is a ' + esc(PKG[st.bun24.code[23]]) + '. It takes no pipe scans.');
@@ -223,6 +407,7 @@
     if (p.kind === 'BUNDLE_QR24') {
       var chk = code[23], qty = +code.slice(21, 23), s2 = skuByPart[part];
       if (st.bun24) return fail('A QR-24 label is already scanned for this package.');
+      if (code[6] === '0') return fail('<b>This is a repack label</b> (factory digit 0). Use Repack at a storage location.');
       if (!s2) return fail('SKU part ' + esc(part) + ' is not in SKU_Master.');
       if (String(s2.PKG_Check) !== chk) return fail('Check digit ' + chk + ' does not match ' + esc(s2.SKU_Code) + ' (' + esc(s2.SKU_Category) + ').');
       if (chk === '1') {
@@ -236,7 +421,7 @@
         st.mode = 'box'; st.sku = s2;
       }
       st.bun24 = { code: code, status: 'pend', old: oldDate }; st.history.push(st.bun24);
-      good(esc(PKG[chk]) + ' label QR-24 · ' + esc(s2.SKU_Code) + ' · qty ' + qty + dateNote);
+      good(esc(PKG[chk]) + ' label QR-24 · ' + esc(s2.SKU_Code) + ' · qty ' + qty + dateNote + macNote);
       checkUnused(st.bun24, 'bun24', 'Package label QR-24');
       return;
     }
@@ -266,7 +451,7 @@
     var h = '';
     if (!st.mode) {
       h += '<h2>Start with the first scan</h2><p class="muted">Pipe bundle: scan the ' + target() + ' pipes, then the bundle QR-24, then the QR-15.<br>' +
-        'Fittings box or Agri pipe: scan its QR-24; QR-15 is optional.</p>';
+        'Fittings box or Agri pipe: scan its QR-24; QR-15 is optional.<br>Closed packages go to the factory\'s WIP Store.</p>';
     } else if (st.mode === 'pipe') {
       var n = st.pipes.length, T = target();
       h += '<div class="steps"><span class="' + (n === T ? 'done' : 'now') + '">Pipes ' + n + '/' + T + '</span>' +
@@ -304,20 +489,23 @@
   $('p-close').onclick = function () {
     if (!readyToClose()) return;
     $('p-close').disabled = true; msg('p-msg', 'info', 'Saving…');
-    TRApi.call('closePackage', {
+    authCall('closePackage', {
       clientUUID: st.uuid, bun24: st.bun24.code, bun15: st.bun15 ? st.bun15.code : '',
       pipes: st.pipes.map(function (x) { return x.code; })
     }, 45000).then(function (r) {
       if (!r.ok) {
-        $('p-close').disabled = false; TRBeep('bad');
+        $('p-close').disabled = false;
+        if (notSaved(r, 'p-msg', function () { resetPack(); show('pack'); })) return;
+        TRBeep('bad');
         return msg('p-msg', 'bad', '<b>Not saved.</b><br>' + esc(r.error).replace(/\n/g, '<br>'));
       }
       TRBeep('ok');
       var w = (r.warnings || []).length ? '<div class="msg warn"><b>Saved with warnings:</b><br>' + r.warnings.map(esc).join('<br>') + '</div>' : '';
       $('d-out').innerHTML = '<div class="msg ok"><b>' + esc(r.pkgType || 'Package') + ' closed' + (r.duplicate ? ' (already saved earlier)' : '') + '</b></div>' + w +
-        '<div class="card">' + kv([['Event', 'Produced · EVT ' + esc(r.evtId)], ['SKU', esc(r.sku || '') + ' · ' + esc(r.skuName || '')],
-          ['Quantity', esc(r.qty)], ['Where', esc(r.where)], ['When', esc(r.when)],
-          ['QR-24', '<span class="mono">' + esc(r.bun24) + '</span>'], ['QR-15', r.bun15 ? '<span class="mono">' + esc(r.bun15) + '</span>' : 'none']]) + '</div>';
+        '<div class="card">' + kv([['Event', 'Produced · EVT ' + esc(r.evtId)], ['SKU', r.sku ? esc(r.sku) + ' · ' + esc(r.skuName || '') : ''],
+          ['Quantity', esc(r.qty)], ['From', esc(r.from)], ['To', esc(r.where) + (r.whereName ? ' · ' + esc(r.whereName) : '')], ['When', esc(r.when)],
+          ['Authorised by', r.authBy ? esc(userName(r.authBy)) : ''],
+          ['QR-24', '<span class="mono">' + esc(r.bun24) + '</span>'], ['QR-15', r.bun15 ? '<span class="mono">' + esc(r.bun15) + '</span>' : (r.duplicate ? '' : 'none')]]) + '</div>';
       show('done');
     }).catch(function (e) {
       $('p-close').disabled = false;
@@ -326,17 +514,9 @@
   };
   $('d-next').onclick = function () { resetPack(); show('pack'); };
 
-  function applyAccess() {
-    var u = TRApi.user(), sup = u && Number(u.access) >= 2;
-    document.querySelectorAll('[data-sup]').forEach(function (t) {
-      t.classList.toggle('locked', !sup);
-      var sm = t.querySelector('small'); if (sm && !sm.dataset.orig) sm.dataset.orig = sm.textContent;
-      if (sm) sm.textContent = sup ? sm.dataset.orig : 'Supervisor only';
-    });
-  }
-
   window.TRApp = {
-    show: show, msg: msg, esc: esc, kv: kv, timeline: timeline, camButton: camButton,
+    show: show, msg: msg, esc: esc, kv: kv, timeline: timeline, camButton: camButton, authCall: authCall, notSaved: notSaved,
+    showResult: showResult, here: here, level: level, userName: userName, LEVEL: LEVEL,
     masters: function () { return M; }, skuByCode: function (c) { return (M && M.skus || []).filter(function (s) { return s.SKU_Code === c; })[0]; },
     skuByPart: function (p) { return skuByPart[p]; }, target: target, todayYYMMDD: todayYYMMDD
   };

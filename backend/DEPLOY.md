@@ -16,11 +16,17 @@
 
 ## Updating the backend later
 
+Version 0.3.0 (28-Nov-2026) needs the sheet changes already made: WHS_Master FTY_Code + WIP01, USR004 manager,
+BUN_Event From_Where/To_Where/Auth_By/Auth_Ref, the AUTH_Requests tab and CONFIG Next_AUTH_ID / Auth_Expiry_Hours.
+After updating, everyone must log in again (the login now includes the location).
+
+
 Paste the new `Code.gs`, Save, then **Deploy → Manage deployments → pencil (Edit) → Version: New version → Deploy**.
 The web app URL stays the same.
 
 ## Why "Anyone"
 
 The phones are not logged in to Google, so the web app must accept calls from anyone. Every call except
-`masters` and `login` needs a valid login token (USR_Code + PIN, signed by the backend and valid for 12 hours).
+`masters` and `login` needs a valid login token (USR_Code + PIN + location, signed by the backend and valid for 12 hours).
+An approver's PIN entered on someone else's phone is checked once and never stored; 5 wrong PINs lock that user for 15 minutes.
 PINs are never sent to the phone.

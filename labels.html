@@ -37,7 +37,7 @@
 </style>
 </head>
 <body>
-<header class="bar"><h1>Demo labels</h1><div class="who"><a href="index.html">App home</a></div></header>
+<header class="bar"><h1>Demo labels</h1><div class="who"><a href="index.html">App home</a> · <a href="locqr.html">Location QRs</a></div></header>
 <div class="controls">
   <div id="need-login" class="msg warn hidden">Log in on the <a href="index.html">app home page</a> first, then come back here.</div>
   <div class="card">
@@ -152,6 +152,7 @@
   TRApi.call('masters').then(function (m) {
     if (!m.ok) return;
     $('r-at').innerHTML = m.warehouses.map(function (w) { return '<option value="' + esc(w.WHS_Code) + '">' + esc(w.WHS_Code + ' · ' + w.WHS_Name + ' (loc ' + w.Loc_No + ')') + '</option>'; }).join('');
+    var lu = TRApi.user(); if (lu && lu.loc && lu.loc.type === 'S') $('r-at').value = lu.loc.code;
     $('r-sku').innerHTML = m.skus.map(function (k) { return '<option value="' + esc(k.SKU_Code) + '" data-cat="' + esc(k.SKU_Category) + '" data-qty="' + esc(k.STD_Qty) + '">' + esc(k.SKU_Code + ' · ' + k.SKU_Description) + '</option>'; }).join('');
     $('r-sku').onchange = function () {
       var o = $('r-sku').selectedOptions[0];

@@ -64,4 +64,12 @@
   global.TR = global.TR || {};
   global.TR.parseQR = parse;
   global.TR.kindLabel = function (k) { return LABEL[k] || k; };
+  // Location QR: PPSPL:LOCATION:S-<Loc_No> (storage) or PPSPL:LOCATION:M-<factory>-<machine>
+  global.TR.parseLoc = function (raw) {
+    var s = String(raw || '').trim(), m;
+    if ((m = /^PPSPL:LOCATION:M-(\d)-(\d\d)$/.exec(s))) return { type: 'M', fty: m[1], mac: m[2], code: 'MAC-' + m[1] + '-' + m[2] };
+    if ((m = /^PPSPL:LOCATION:S-(\d\d)$/.exec(s))) return { type: 'S', locNo: m[1] };
+    if ((m = /^PPSPL:CUSTOMER:(\w+)$/.exec(s))) return { type: 'C', code: m[1] };
+    return null;
+  };
 })(window);

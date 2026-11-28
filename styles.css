@@ -61,3 +61,14 @@ table.grid td.n,table.grid th.n{text-align:right}
 .big b{display:block;font-size:24px}
 .check{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:14px}
 .check input{width:auto}
+textarea{width:100%;font-size:16px;padding:10px;border:1px solid #c5ccd4;border-radius:10px;font-family:inherit}
+.modal{position:fixed;inset:0;background:rgba(15,42,68,.55);z-index:20;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:16px}
+.modal .box{background:#fff;border-radius:14px;padding:16px;width:100%;max-width:520px;margin-top:4vh}
+.modal .box > button{margin-top:8px}
+.tile .lvl{display:inline-block;margin-left:6px;font-size:11px;font-weight:600;padding:1px 7px;border-radius:9px;background:#fff1d6;color:#8a5a00;vertical-align:middle}
+.tile .lvl.l3{background:#fbe2e2;color:#a12a2a}
+.req{border-left:5px solid var(--warn)}
+.req.Approved{border-color:var(--ok)}.req.Rejected,.req.Failed{border-color:var(--bad)}.req.Cancelled,.req.Expired{border-color:#aab3bd}
+.here b{font-size:16px}
+.reader:empty{min-height:0}
+a.tile{text-decoration:none}

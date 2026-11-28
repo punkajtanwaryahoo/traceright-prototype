@@ -28,7 +28,7 @@
     </div>
   </section>
 
-  <!-- Screen 1: Login -->
+  <!-- Login: name, PIN and location -->
   <section id="v-login" class="hidden">
     <div class="card">
       <h2>Log in</h2>
@@ -36,31 +36,45 @@
       <select id="l-user"><option value="">Loading users…</option></select>
       <label for="l-pin">PIN</label>
       <input id="l-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="4-digit PIN">
-      <div style="height:14px"></div>
-      <button id="l-go">Log in</button>
-      <div id="l-msg"></div>
     </div>
-    <p class="muted">Prototype with dummy data. Logins: 2 operators and 1 supervisor.</p>
+    <div class="card">
+      <h2>Where are you?</h2>
+      <p class="muted">Scan the location QR posted here, or choose below. The location stays fixed until you log out.</p>
+      <button class="sec" id="l-cam">Scan location QR</button>
+      <div id="l-reader" class="reader" style="margin-top:8px"></div>
+      <label for="l-fty">Factory</label>
+      <select id="l-fty"></select>
+      <label for="l-where">Machine or storage location</label>
+      <select id="l-where"></select>
+    </div>
+    <button id="l-go">Log in</button>
+    <div id="l-msg"></div>
+    <p class="muted">Prototype with dummy data: 2 operators, 1 supervisor, 1 manager.</p>
   </section>
 
   <!-- Home -->
   <section id="v-home" class="hidden">
+    <div class="msg info" id="home-loc"></div>
     <div class="tiles">
       <button class="tile" data-go="lookup">Package / Pipe lookup<small>Scan any code to see its history</small></button>
-      <button class="tile" data-go="pack">Primary Pack<small>Close a pipe bundle, fittings box or Agri pipe</small></button>
-      <a class="tile" href="labels.html">Print demo labels<small>Today's QR sheets (A4)</small></a>
-      <a class="tile" href="camtest.html">Camera test<small>Scan and decode only</small></a>
-      <button class="tile" data-go="move" data-arg="transfer">Transfer<small>Move packages between yards and warehouses</small></button>
-      <button class="tile" data-go="move" data-arg="sales">Sales<small>Load packages for a customer</small></button>
-      <button class="tile" data-go="ret" data-sup="1">Returns<small>Receive a sold package back</small></button>
-      <button class="tile" data-go="unp" data-sup="1">Unpack<small>Open a package; pipes become loose</small></button>
-      <button class="tile" data-go="rep">Repack<small>New package from loose stock</small></button>
+      <button class="tile" data-go="pack" data-at="M">Primary Pack<small>Close a pipe bundle, fittings box or Agri pipe</small></button>
+      <button class="tile" data-go="move" data-arg="transfer" data-at="S">Transfer<small>Move packages from here to another location</small></button>
+      <button class="tile" data-go="move" data-arg="sales" data-at="S">Sales<small>Load packages here for a customer</small></button>
+      <button class="tile" data-go="ret" data-at="S" data-lvl="2">Returns<small>Receive a sold package back</small></button>
+      <button class="tile" data-go="unp" data-at="S" data-lvl="2">Unpack<small>Open a package; pipes become loose</small></button>
+      <button class="tile" data-go="rep" data-at="S">Repack<small>New package from loose stock</small></button>
+      <button class="tile" data-go="loc" data-at="S" data-lvl="3">Location Correction<small>Package found here but recorded elsewhere</small></button>
+      <button class="tile" data-go="inbox" data-min="2">Approvals inbox<small id="inbox-count">Requests waiting for you</small></button>
+      <button class="tile" data-go="myreq">My requests<small>Approvals you asked for</small></button>
       <button class="tile" data-go="dash">Dashboard<small>Stock, production and sales</small></button>
+      <a class="tile" href="labels.html">Print demo labels<small>Today's QR sheets (A4)</small></a>
+      <a class="tile" href="locqr.html">Print location QRs<small>Machines and storage locations</small></a>
+      <a class="tile" href="camtest.html">Camera test<small>Scan and decode only</small></a>
     </div>
     <p class="muted" id="home-info"></p>
   </section>
 
-  <!-- Screen 2: Lookup -->
+  <!-- Lookup -->
   <section id="v-lookup" class="hidden">
     <div class="row" style="margin-bottom:10px">
       <button class="sec" data-go="home">← Home</button>
@@ -71,7 +85,7 @@
     <div id="k-out"></div>
   </section>
 
-  <!-- Screen 3: Primary Pack -->
+  <!-- Primary Pack -->
   <section id="v-pack" class="hidden">
     <div class="row" style="margin-bottom:10px">
       <button class="sec" data-go="home">← Home</button>
@@ -114,7 +128,7 @@
       <button class="sec" data-go="home">← Home</button>
       <button id="rt-cam">Start camera</button>
     </div>
-    <div class="card"><label for="rt-at">Receiving location</label><select id="rt-at" class="loc"></select></div>
+    <div class="card here"></div>
     <div id="rt-reader" class="reader"></div>
     <div class="manual"><input id="rt-manual" class="mono" placeholder="or type / paste a package code"><button id="rt-manual-go">Find</button></div>
     <div id="rt-msg"></div>
@@ -127,7 +141,7 @@
       <button class="sec" data-go="home">← Home</button>
       <button id="up-cam">Start camera</button>
     </div>
-    <div class="card"><label for="up-at">Location where the package is opened</label><select id="up-at" class="loc"></select></div>
+    <div class="card here"></div>
     <div id="up-reader" class="reader"></div>
     <div class="manual"><input id="up-manual" class="mono" placeholder="or type / paste a package code"><button id="up-manual-go">Find</button></div>
     <div id="up-msg"></div>
@@ -140,7 +154,7 @@
       <button class="sec" data-go="home">← Home</button>
       <button id="rp-cam">Start camera</button>
     </div>
-    <div class="card"><label for="rp-at">Repack location</label><select id="rp-at" class="loc"></select></div>
+    <div class="card here"></div>
     <div id="rp-reader" class="reader"></div>
     <div class="manual"><input id="rp-manual" class="mono" placeholder="or type / paste a code"><button id="rp-manual-go">Add</button></div>
     <div class="card" id="rp-state"></div>
@@ -151,6 +165,39 @@
     </div>
     <div style="height:10px"></div>
     <button class="ok" id="rp-close" disabled>Close repacked package</button>
+  </section>
+
+  <!-- Location Correction -->
+  <section id="v-loc" class="hidden">
+    <div class="row" style="margin-bottom:10px">
+      <button class="sec" data-go="home">← Home</button>
+      <button id="lc-cam">Start camera</button>
+    </div>
+    <div class="card here"></div>
+    <div id="lc-reader" class="reader"></div>
+    <div class="manual"><input id="lc-manual" class="mono" placeholder="or type / paste a package code"><button id="lc-manual-go">Find</button></div>
+    <div id="lc-msg"></div>
+    <div id="lc-form" class="card hidden"></div>
+  </section>
+
+  <!-- Approvals inbox -->
+  <section id="v-inbox" class="hidden">
+    <div class="row" style="margin-bottom:10px">
+      <button class="sec" data-go="home">← Home</button>
+      <button id="ib-refresh">Refresh</button>
+    </div>
+    <div id="ib-msg"></div>
+    <div id="ib-out"></div>
+  </section>
+
+  <!-- My requests -->
+  <section id="v-myreq" class="hidden">
+    <div class="row" style="margin-bottom:10px">
+      <button class="sec" data-go="home">← Home</button>
+      <button id="mr-refresh">Refresh</button>
+    </div>
+    <div id="mr-msg"></div>
+    <div id="mr-out"></div>
   </section>
 
   <!-- Dashboard -->
@@ -180,6 +227,32 @@
     </div>
   </section>
 </main>
+
+<!-- Authorisation dialog (on-device approval, remote request, or reason only) -->
+<div id="auth" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="au-title">
+  <div class="box">
+    <h2 id="au-title">Authorisation needed</h2>
+    <div id="au-why"></div>
+    <label for="au-reason">Reason (required)</label>
+    <textarea id="au-reason" rows="2" placeholder="Why is this needed?"></textarea>
+    <div id="au-appr">
+      <div class="card" style="margin-top:12px">
+        <h2 id="au-dev-h">Approver on this phone</h2>
+        <label for="au-usr">Approver</label>
+        <select id="au-usr"></select>
+        <label for="au-pin">Approver PIN</label>
+        <input id="au-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off">
+        <div style="height:10px"></div>
+        <button id="au-dev">Level 2 Authorisation</button>
+      </div>
+      <button class="sec" id="au-remote">Send for approval (Inbox)</button>
+    </div>
+    <button class="ok hidden" id="au-ok">Confirm and save</button>
+    <div id="au-msg"></div>
+    <div style="height:8px"></div>
+    <button class="sec" id="au-cancel">Cancel</button>
+  </div>
+</div>
 
 <script src="app.js"></script>
 <script src="modules.js"></script>
